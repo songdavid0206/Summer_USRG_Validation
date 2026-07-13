@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 av-bev = "ac_validation.bev:main"
+av-view = "ac_validation.viewer:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

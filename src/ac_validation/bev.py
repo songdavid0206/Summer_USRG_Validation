@@ -24,7 +24,6 @@ import json
 from pathlib import Path
 
 import matplotlib
-matplotlib.use("Agg")   # 파일 저장용(창 안 띄움)
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Polygon
@@ -271,6 +270,7 @@ def render_bev(run_dir, frame: int = -1, view: str = "ego", out_dir=None,
 
 
 def main():
+    matplotlib.use("Agg")   # av-bev 는 파일 저장 전용 (창 안 띄움)
     ap = argparse.ArgumentParser(description="BEV 렌더러 (데이터셋 검증용)")
     ap.add_argument("run_dir", help="dataset/<run_id>")
     ap.add_argument("--frame", type=int, default=-1, help="프레임 번호(기본 -1=중앙)")
