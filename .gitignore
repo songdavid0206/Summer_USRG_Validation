@@ -1,0 +1,18 @@
+# 검증 산출물(PNG 리포트/BEV 등) — 코드 백업 대상 아님, 언제든 재생성 가능
+validation/
+reports/
+*.png
+
+# 파이썬 캐시
+__pycache__/
+*.pyc
+*.pyo
+
+# 패키지 빌드 산출물 (pip install -e . 등이 생성)
+*.egg-info/
+build/
+dist/
+
+# OS/에디터
+.DS_Store
+.vscode/

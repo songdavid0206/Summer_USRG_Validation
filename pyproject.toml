@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ac_validation"
+version = "0.1.0"
+description = "Assetto Corsa IL 데이터셋 검증/시각화 툴킷 (ac_dataset 산출물 심사)"
+requires-python = ">=3.10"
+# 무거운 시각화 의존성은 여기에만 둔다(수집 패키지 ac_dataset 는 가볍게 유지).
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyarrow",
+    "matplotlib",
+    "ac_dataset",   # 좌표/투영/제원 로직 재사용 (pip install -e ../ac_dataset 로 설치)
+]
+
+[project.scripts]
+av-bev = "ac_validation.bev:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
