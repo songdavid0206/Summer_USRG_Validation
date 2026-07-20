@@ -8,9 +8,14 @@
 ----
 - loader   : run 을 RunData(ego/opp/track/dims/meta) 하나로 로드
 - bev      : Bird's-Eye-View 렌더러 (전역 / ego-centric)  → CLI: av-bev
+- viewer   : 인터랙티브 3패널 뷰어(이미지+3Dbbox / BEV / ego plot)  → CLI: av-view
+- checks   : 물리 일관성 자동 검증(채널 교차검증, 순환논리 배제)
+- report   : 검증 PNG 리포트 + summary.json + 이상프레임 flag  → CLI: av-check
 """
 
+from .checks import CheckResult, run_all_checks
 from .loader import RunData, load_run
+from .report import make_report
 
-__all__ = ["RunData", "load_run"]
+__all__ = ["RunData", "load_run", "CheckResult", "run_all_checks", "make_report"]
 __version__ = "0.1.0"

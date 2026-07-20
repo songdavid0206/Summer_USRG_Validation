@@ -37,8 +37,17 @@ def _rot(yaw: float) -> np.ndarray:
     return np.array([[c, -s], [s, c]])
 
 
-def _box_corners(cx: float, cy: float, yaw: float, length: float, width: float) -> np.ndarray:
-    """차량 박스 4모서리(월드 좌표). yaw 방향이 길이축(전방)."""
+def _box_corners(cx: float, cy: float, yaw: float, length: float, width: float,
+                 center_offset: tuple[float, float] = (0.0, 0.0)) -> np.ndarray:
+    """차량 박스 4모서리(월드 좌표). yaw 방향이 길이축(전방).
+
+    center_offset=(forward,left): 차 원점 대비 collider bbox 중심(m). 이미지 3D 박스와
+    같은 자리에 앉도록 BEV 도 이 오프셋을 반영한다(projection._box_corners_3d 와 동일 규약).
+    """
+    fo, lo = center_offset
+    c, s = np.cos(yaw), np.sin(yaw)
+    cx = cx + fo * c - lo * s
+    cy = cy + fo * s + lo * c
     l, w = length / 2.0, width / 2.0
     local = np.array([[l, w], [l, -w], [-l, -w], [-l, w]])   # FL, FR, RL, RR (전방=+x_local)
     return (_rot(yaw) @ local.T).T + np.array([cx, cy])
@@ -63,14 +72,15 @@ _FOV_C = "#1f77b4"
 
 def _draw_box(ax, corners, color, label=None, alpha=0.55):
     ax.add_patch(Polygon(corners, closed=True, facecolor=color, edgecolor="black",
-                         linewidth=1.0, alpha=alpha, zorder=5))
+                         linewidth=1.0, alpha=alpha, zorder=5, clip_on=True))
     # 전방 표시(앞모서리 중점에 점)
     front = (corners[0] + corners[1]) / 2.0
-    ax.plot(front[0], front[1], "o", color="black", ms=3, zorder=6)
+    ax.plot(front[0], front[1], "o", color="black", ms=3, zorder=6,
+            clip_on=True)
     if label is not None:
         c = corners.mean(0)
         ax.text(c[0], c[1], label, fontsize=7, ha="center", va="center",
-                color="black", zorder=7)
+                color="black", zorder=7, clip_on=True)
 
 
 def _track_edges(rl):
@@ -124,41 +134,23 @@ def _export_image_path(run: RunData, i: int) -> Path | None:
     return None
 
 
-def render_frame(run: RunData, frame: int, view: str = "ego",
-                 fov_deg: float | None = None,
-                 past_s: float = 2.0, future_s: float = 3.0,
-                 ego_range: tuple[float, float] = (40.0, 60.0),
-                 show_image: bool = True):
-    """한 프레임을 [카메라 이미지 | BEV] 2패널로 그려 Figure 반환. view = 'ego' | 'global'.
+def draw_scene(ax, run: RunData, i: int, view: str = "ego",
+               fov_deg: float | None = None,
+               past_s: float = 2.0, future_s: float = 3.0,
+               ego_range: tuple[float, float] = (40.0, 60.0),
+               legend: bool = True, title: bool = True):
+    """한 프레임의 장면(트랙+ego+상대차+궤적)을 **주어진 축 하나**에 그린다.
 
-    show_image=True 면 왼쪽에 그 프레임의 실제 카메라 이미지를 함께 보여준다
-    (파일 이름도 제목에 표시 → "이 BEV = 이 사진"을 바로 확인).
+    av-bev(render_frame)와 av-view 뷰어가 **같은 렌더링을 공유**하도록 분리한 핵심 함수.
+    view='ego' 면 ego 원점·진행방향 위로 회전, 'global' 이면 월드 좌표 그대로(트랙 전체).
     """
     ego = run.ego
-    i = int(np.clip(frame, 0, len(ego) - 1))
+    i = int(np.clip(i, 0, len(ego) - 1))
     ex, ey = float(ego["world_position_x"].iloc[i]), float(ego["world_position_y"].iloc[i])
     eyaw = float(ego["yaw"].iloc[i])
     ego_xy = np.array([ex, ey])
-
-    # 프레임 레이트 → past/future 프레임 수
     hz = run.meta.get("image_hz_actual") or run.meta.get("image_hz") or 40.0
     n_past, n_future = int(past_s * hz), int(future_s * hz)
-
-    img_path = _camera_image_path(run, i) if show_image else None
-    if img_path is not None:
-        fig, (ax_img, ax) = plt.subplots(1, 2, figsize=(16, 8),
-                                         gridspec_kw={"width_ratios": [1.2, 1]})
-        import matplotlib.image as mpimg
-        ax_img.imshow(mpimg.imread(str(img_path)))
-        # 원본 이름 + export(최종 산출물) 이름 둘 다 표시 → 어느 폴더를 보든 파일 찾기 쉬움.
-        exp_path = _export_image_path(run, i)
-        cap = "camera(raw): %s" % img_path.name
-        if exp_path is not None:
-            cap += "   |   export: %s" % exp_path.name
-        ax_img.set_title(cap, fontsize=9)
-        ax_img.axis("off")
-    else:
-        fig, ax = plt.subplots(figsize=(8, 8))
 
     to = (lambda P: _to_ego_frame(P, ego_xy, eyaw)) if view == "ego" else (lambda P: P)
 
@@ -193,7 +185,8 @@ def render_frame(run: RunData, frame: int, view: str = "ego",
 
     # --- ego 박스 ---
     L, W, _ = run.car_dim(None)
-    _draw_box(ax, to(_box_corners(ex, ey, eyaw, L, W)), _EGO_C, alpha=0.7)
+    eco = run.car_bbox_center(None)
+    _draw_box(ax, to(_box_corners(ex, ey, eyaw, L, W, (eco[0], eco[1]))), _EGO_C, alpha=0.7)
 
     # --- 상대차 박스 ---
     n_shown = 0
@@ -203,11 +196,14 @@ def render_frame(run: RunData, frame: int, view: str = "ego",
             continue
         retired = bool(r.get("retired", False))
         ox, oy = float(r["opp_x"]), float(r["opp_y"])
-        oyaw = float(r["yaw_body"]) if "yaw_body" in o.columns and np.isfinite(r["yaw_body"]) \
-            else float(r["opp_yaw"])
+        # 이미지 투영과 같은 yaw 선택(주행중=opp_yaw, 정지=yaw_body) — projection.opp_box_yaw
+        from .projection import opp_box_yaw
+        oyaw = opp_box_yaw(r)
         Lo, Wo, _ = run.car_dim(oid)
+        oco = run.car_bbox_center(oid)
         color = _OPP_RET if retired else _OPP_C
-        _draw_box(ax, to(_box_corners(ox, oy, oyaw, Lo, Wo)), color, label="%d" % oid)
+        _draw_box(ax, to(_box_corners(ox, oy, oyaw, Lo, Wo, (oco[0], oco[1]))), color,
+                  label="%d" % oid)
         n_shown += 1
 
     # --- 뷰 설정 ---
@@ -224,17 +220,49 @@ def render_frame(run: RunData, frame: int, view: str = "ego",
         ax.set_xlabel("world x (m)"); ax.set_ylabel("world y (m)")
     ax.set_aspect("equal")
     ax.grid(True, alpha=0.2)
-    # 범례용 프록시(박스 색)
-    from matplotlib.patches import Patch
-    handles, labels = ax.get_legend_handles_labels()
-    handles += [Patch(facecolor=_EGO_C, edgecolor="black", label="ego"),
-                Patch(facecolor=_OPP_C, edgecolor="black", label="opponent"),
-                Patch(facecolor=_OPP_RET, edgecolor="black", label="opp retired")]
-    ax.legend(handles=handles, loc="upper right", fontsize=7, framealpha=0.85)
+    if legend:
+        from matplotlib.patches import Patch
+        handles, _ = ax.get_legend_handles_labels()
+        handles += [Patch(facecolor=_EGO_C, edgecolor="black", label="ego"),
+                    Patch(facecolor=_OPP_C, edgecolor="black", label="opponent"),
+                    Patch(facecolor=_OPP_RET, edgecolor="black", label="opp retired")]
+        ax.legend(handles=handles, loc="upper right", fontsize=7, framealpha=0.85)
+    if title:
+        spd = float(ego["speed"].iloc[i]) if "speed" in ego else float("nan")
+        ax.set_title("%s  frame %d  |  %s view  |  %.1f m/s (%.0f km/h)  |  %d opp"
+                     % (run.track_name, i, view, spd, spd * 3.6, n_shown), fontsize=10)
+    return n_shown
 
-    spd = float(ego["speed"].iloc[i]) if "speed" in ego else float("nan")
-    ax.set_title("%s  frame %d  |  %s view  |  %.1f m/s (%.0f km/h)  |  %d opp"
-                 % (run.track_name, i, view, spd, spd * 3.6, n_shown), fontsize=10)
+
+def render_frame(run: RunData, frame: int, view: str = "ego",
+                 fov_deg: float | None = None,
+                 past_s: float = 2.0, future_s: float = 3.0,
+                 ego_range: tuple[float, float] = (40.0, 60.0),
+                 show_image: bool = True):
+    """한 프레임을 [카메라 이미지 | BEV] 2패널로 그려 Figure 반환. view = 'ego' | 'global'.
+
+    show_image=True 면 왼쪽에 그 프레임의 실제 카메라 이미지를 함께 보여준다
+    (파일 이름도 제목에 표시 → "이 BEV = 이 사진"을 바로 확인).
+    """
+    i = int(np.clip(frame, 0, len(run.ego) - 1))
+    img_path = _camera_image_path(run, i) if show_image else None
+    if img_path is not None:
+        fig, (ax_img, ax) = plt.subplots(1, 2, figsize=(16, 8),
+                                         gridspec_kw={"width_ratios": [1.2, 1]})
+        import matplotlib.image as mpimg
+        ax_img.imshow(mpimg.imread(str(img_path)))
+        # 원본 이름 + export(최종 산출물) 이름 둘 다 표시 → 어느 폴더를 보든 파일 찾기 쉬움.
+        exp_path = _export_image_path(run, i)
+        cap = "camera(raw): %s" % img_path.name
+        if exp_path is not None:
+            cap += "   |   export: %s" % exp_path.name
+        ax_img.set_title(cap, fontsize=9)
+        ax_img.axis("off")
+    else:
+        fig, ax = plt.subplots(figsize=(8, 8))
+
+    draw_scene(ax, run, i, view=view, fov_deg=fov_deg,
+               past_s=past_s, future_s=future_s, ego_range=ego_range)
     fig.tight_layout()
     return fig
 
