@@ -138,7 +138,8 @@ def draw_scene(ax, run: RunData, i: int, view: str = "ego",
                fov_deg: float | None = None,
                past_s: float = 2.0, future_s: float = 3.0,
                ego_range: tuple[float, float] = (40.0, 60.0),
-               legend: bool = True, title: bool = True, legend_ax=None):
+               legend: bool = True, title: bool = True, legend_ax=None,
+               legend_ncol: int = 2):
     """한 프레임의 장면(트랙+ego+상대차+궤적)을 **주어진 축 하나**에 그린다.
 
     av-bev(render_frame)와 av-view 뷰어가 **같은 렌더링을 공유**하도록 분리한 핵심 함수.
@@ -230,7 +231,7 @@ def draw_scene(ax, run: RunData, i: int, view: str = "ego",
             ax.legend(handles=handles, loc="upper right", fontsize=7, framealpha=0.85)
         else:
             legend_ax.axis("off")
-            legend_ax.legend(handles=handles, loc="center", ncol=2, fontsize=6.5,
+            legend_ax.legend(handles=handles, loc="center", ncol=legend_ncol, fontsize=6.5,
                              frameon=False, columnspacing=1.0, handlelength=1.8,
                              handletextpad=0.5, borderaxespad=0.0)
     if title:

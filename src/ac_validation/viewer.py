@@ -230,16 +230,14 @@ class Viewer:
         # 않도록 위쪽에 독립된 헤더 여백을 둔다.
         self.ax_img = self.fig.add_axes([0.02, 0.53, 0.42, 0.385])   # 카메라 + 3D bbox
         # 좌하: 전체맵(좌) + 로컬 BEV(우). 전체맵은 트랙 종횡비에 맞춰 크기.
-        # 전체맵과 범례의 figure 영역을 물리적으로 분리한다. 트랙 형상과
-        # 관계없이 범례가 랩/차량을 가릴 수 없다.
+        # 두 지도가 같은 시각 기호를 쓰므로 하단의 공통 범례 하나를 공유한다.
+        # 지도와 범례의 figure 영역은 물리적으로 분리되어 서로 가릴 수 없다.
         self.ax_glob = self.fig.add_axes(
             self._fit_rect((0.015, 0.105, 0.215, 0.355), self._track_aspect()))
-        self.ax_glob_legend = self.fig.add_axes([0.015, 0.012, 0.215, 0.075])
-        self.ax_glob_legend.axis("off")
         # x축 라벨까지 범례와 분리되도록 지도와 범례 사이에 넉넉한 간격을 둔다.
         self.ax_bev = self.fig.add_axes([0.25, 0.14, 0.19, 0.32])    # BEV ego-centric(로컬)
-        self.ax_bev_legend = self.fig.add_axes([0.25, 0.012, 0.19, 0.075])
-        self.ax_bev_legend.axis("off")
+        self.ax_scene_legend = self.fig.add_axes([0.015, 0.012, 0.425, 0.075])
+        self.ax_scene_legend.axis("off")
         # 가운데: 물리 일관성(av-check). 프레임 무관 고정 → __init__ 에서 1회 렌더.
         #   체크마다 measured vs reference 산점도(y=x 에 붙으면 일치). 세로로 5개 쌓음.
         self.ax_phys_hdr = self.fig.add_axes([0.475, 0.905, 0.245, 0.03]); self.ax_phys_hdr.axis("off")
@@ -481,14 +479,12 @@ class Viewer:
 
         # --- 패널 2: BEV (ego-centric) ---
         self.ax_bev.clear()
-        self.ax_bev_legend.clear()
-        self.ax_bev_legend.axis("off")
+        self.ax_scene_legend.clear()
+        self.ax_scene_legend.axis("off")
         self._draw_bev(self.ax_bev, i)
 
         # --- 패널 3: 전체 트랙 맵 ---
         self.ax_glob.clear()
-        self.ax_glob_legend.clear()
-        self.ax_glob_legend.axis("off")
         self._draw_global(self.ax_glob, i)
 
         # --- 패널 4: ego 검수 plot ---
@@ -500,15 +496,16 @@ class Viewer:
         self.fig.canvas.draw_idle()
 
     def _draw_bev(self, ax, i):
-        """BEV(ego-centric). av-bev 와 같은 draw_scene 재사용(범례 포함), 제목만 뷰어용으로."""
+        """BEV(ego-centric). 범례는 global view와 하단 공통 범례를 사용한다."""
         bevmod.draw_scene(ax, self.run, i, view="ego", fov_deg=self.fov,
-                          legend=True, title=False, legend_ax=self.ax_bev_legend)
+                          legend=False, title=False)
         ax.set_title("BEV (ego-centric)", fontsize=9)
 
     def _draw_global(self, ax, i):
         """전체 트랙 맵. av-bev 의 global 뷰와 **동일한 렌더링**을 공용 draw_scene 으로 재사용."""
         n_shown = bevmod.draw_scene(ax, self.run, i, view="global", title=False,
-                                    legend=True, legend_ax=self.ax_glob_legend)
+                                    legend=True, legend_ax=self.ax_scene_legend,
+                                    legend_ncol=4)
         ego = self.run.ego.iloc[i]
         spd = float(ego.get("speed", float("nan")))
         ax.set_title("%s · frame %d\n%.1f m/s (%.0f km/h) · %d opp"
