@@ -1,4 +1,4 @@
-# ac_validation — AC IL 데이터셋 검증/시각화 툴킷
+# Summer_USRG Validation — AC 데이터셋 검증 툴킷
 
 `ac_dataset` 이 만든 run(`dataset/<run_id>/`)을 **읽기 전용**으로 심사한다.
 수집 파이프라인과 분리돼 있어(의존성 한 방향: validation → dataset), 이 패키지가 깨져도
@@ -7,7 +7,44 @@
 실제 자율주행 데이터셋 devkit(nuScenes/Argoverse/Waymo)이 하는 검증 방식을 AC 데이터에 맞춰
 재구현하는 것을 목표로 한다: 카메라 재투영(3D bbox), BEV, 물리 일관성, 시간 동기화, 미래 궤적.
 
-## 현재 상태 (2026-07-20)
+## 문서 안내
+
+| 문서 | 내용 |
+|---|---|
+| **이 README** | 검증 도구 설치, 실행, 결과 해석 |
+| [Summer_USRG README](https://github.com/songdavid0206/Summer_USRG) | 수집 파이프라인과 데이터 구조 |
+| [Summer_USRG SETUP](https://github.com/songdavid0206/Summer_USRG/blob/main/SETUP.md) | Content Manager·카메라·CSP·플러그인 설정 |
+
+## 목차
+
+- [빠른 시작](#빠른-시작)
+- [현재 상태](#현재-상태-2026-07-21)
+- [실행 경로](#실행-경로)
+- [`av-view` 인터랙티브 검증](#av-view-인터랙티브-뷰어)
+- [`av-check` 물리 검증](#av-check-물리-일관성-자동-검증)
+- [3D bbox 투영 원리](#3d-bbox-투영-원리)
+- [결과 해석 주의사항](#결과-해석-주의사항)
+- [검증 로드맵](#검증-로드맵)
+
+## 빠른 시작
+
+수집 패키지를 먼저 설치한 뒤 validation을 설치한다.
+
+```powershell
+cd Summer_USRG
+python -m pip install -e ".[capture]"
+
+cd ..\Summer_USRG_Validation
+python -m pip install -e .
+
+# 원본 run을 정량 검사하고 프레임 단위로 확인
+av-check ..\Summer_USRG\dataset\<run_id>
+av-view  ..\Summer_USRG\dataset\<run_id> --frame 0
+```
+
+입력은 `_ks_laguna_seca_40hz` 같은 export 폴더가 아니라 `dataset/<run_id>` 원본 폴더다.
+
+## 현재 상태 (2026-07-21)
 
 최신 CSP v2 run에서는 다음 검증 경로가 모두 동작한다.
 
@@ -34,7 +71,7 @@ cd ../ac_validation && pip install -e .
 > 이미 설치돼 있어도, 새 CLI 명령(예: `av-check`)이 추가되면 `cd ac_validation && pip install -e .`
 > 를 **한 번 다시** 돌려야 그 명령이 터미널에서 인식된다(진입점 재등록). 코드만 고친 경우는 불필요(editable).
 
-## 실행 위치와 경로 (중요)
+## 실행 경로
 
 CLI 는 어느 폴더에서든 실행되지만, run 폴더 **경로는 현재 위치 기준**이다. 헷갈리면 아래 표대로.
 
@@ -56,7 +93,7 @@ CLI 는 어느 폴더에서든 실행되지만, run 폴더 **경로는 현재 �
 | `av-bev <run>` | 정지 BEV 한 프레임(ego/global) + 카메라 이미지 나란히 (파일 저장) |
 | **`av-check <run>`** | **물리 일관성 자동 검증** — 채널 교차검증으로 PNG 리포트 + `summary.json` 생성 |
 
-### `av-view` — 인터랙티브 뷰어 (메인)
+### `av-view`: 인터랙티브 뷰어
 
 **전체화면 통합 대시보드**에서 프레임을 넘겨가며 검증한다. **미리 저장하지 않고** 넘길
 때마다 그 프레임만 즉석에서 그린다(저장 용량 0). 모든 프레임/모든 run 에 그대로 쓸 수 있다.
@@ -102,7 +139,7 @@ av-bev ac_dataset/dataset/<run_id> --frame 350 --view both
 ```
 `av-view` 와 달리 창을 안 띄우고 png 로 저장한다(리포트·공유용).
 
-### `av-check` — 물리 일관성 자동 검증 (정량)
+### `av-check`: 물리 일관성 자동 검증
 
 게임이 주는 **여러 채널로 같은 물리량을 두 번 구해** 일치하는지 자동으로 판정한다.
 사람이 눈으로 보는 `av-view` 와 달리 숫자로 PASS/FAIL 을 낸다.
@@ -133,7 +170,7 @@ av-check ac_dataset/dataset/<run_id>
 > **단위 주의:** AC 의 `accelX`(횡)·`accelY`(종)는 **m/s² 가 아니라 g 단위**다.
 > (기준 run 에서 `v·yaw_rate = 9.76·accelX` 로 확인 → 리포트는 `×9.81` 로 환산해 비교.)
 
-## 카메라 투영 파라미터 (3D bbox)
+## 3D bbox 투영 원리
 
 새 run의 이미지 위 3D 박스는 CSP 브리지가 **각 렌더 프레임에서 직접 기록한 월드 카메라
 position/forward/up/FOV**로 투영한다(`projection.py`). 따라서 g-force, shake, horizon lock,
@@ -168,6 +205,33 @@ position/forward/up/FOV**로 투영한다(`projection.py`). 따라서 g-force, s
 [view/v14] 투영 카메라 = CSP 실제 렌더 pose, hfov=91.49°(f=935),
            τ=0ms, same-render full 6DoF + visual AABB
 ```
+
+## 결과 해석 주의사항
+
+### 기울어진 박스가 항상 오류는 아니다
+
+최신 박스는 yaw-only 직립 박스가 아니라 차량의 실제 `forward/up`을 반영한 full 6DoF cuboid다.
+경사·뱅크·연석에서 차체가 pitch/roll하면 박스도 함께 기울어진다. 다음 값이 연속적이면 우선 정상
+기하로 판단한다.
+
+- `cam_pose_game_delta_ms = 0`에 근접
+- `cam_packet_render_error = 0`에 근접
+- `car_state_age_ms = 0`에 근접
+- forward/up 벡터 norm≈1, 내적≈0
+- AABB 크기가 같은 차종에서 일정
+
+### 멀리 있는 두 박스가 하나처럼 겹칠 수 있다
+
+뷰어는 amodal 3D wireframe의 숨은 모서리까지 표시한다. 두 차량이 카메라 시선상 일렬로 서거나
+박스가 10~20px로 작아지면 두 wireframe과 번호가 포개져 하나의 뒤틀린 박스처럼 보일 수 있다.
+이는 꼭짓점 손상이 아니라 occlusion/표시 문제다. BEV에서 차량이 두 대인지 함께 확인한다.
+
+### horizon lock과 `pitch+roll=OFF` 로그
+
+`pitch+roll=OFF(meta world_aligned=1)`은 실제 카메라 roll을 0으로 만든다는 뜻이 아니다. CSP actual
+pose에 telemetry pitch/roll을 **중복으로 더하지 않는다**는 뜻이다. 현재 F6 CAMERA_0 run에서는
+`IS_WORLD_ALIGNED=1`이어도 실제 카메라 roll이 차체 roll을 따라갔다(전체 run 상관 `0.99985`).
+뷰어는 설정값을 믿고 수평을 강제하지 않고, 이미지가 실제로 렌더된 CSP 카메라 pose를 사용한다.
 
 ## 모듈
 
