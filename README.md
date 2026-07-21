@@ -128,7 +128,7 @@ av-view ac_dataset/dataset/<run_id> --frame 350
 | 키 | 동작 |
 |---|---|
 | `←` `→` (또는 `a` `d`) | 이전 / 다음 프레임 |
-| `Shift+←/→` (또는 `A` `D`) | 10프레임씩 |
+| `Shift+←/→` (또는 `A` `D`) | 50프레임씩 |
 | `Home` / `End` | 처음 / 마지막 |
 | `s` | 현재 프레임 png 저장 (`dataset/validation/<run_id>/`) |
 | `q` | 종료 |

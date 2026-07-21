@@ -1,9 +1,10 @@
 import matplotlib
 import unittest
+from types import SimpleNamespace
 
 matplotlib.use("Agg")
 
-from ac_validation.viewer import _bbox_row_visible, _layout_image_labels
+from ac_validation.viewer import Viewer, _bbox_row_visible, _layout_image_labels
 
 
 class ViewerLayoutTests(unittest.TestCase):
@@ -28,6 +29,18 @@ class ViewerLayoutTests(unittest.TestCase):
             {"present": True, "retired": False, "valid": False}))
         self.assertFalse(_bbox_row_visible(
             {"present": False, "retired": False, "valid": True}))
+
+    def test_shift_arrow_moves_fifty_frames(self):
+        viewer = Viewer.__new__(Viewer)
+        viewer.run = SimpleNamespace(n_frames=1000)
+        viewer.i = 100
+        viewer.step = 1
+        viewer._draw = lambda: None
+
+        viewer._on_key(SimpleNamespace(key="shift+right"))
+        self.assertEqual(viewer.i, 150)
+        viewer._on_key(SimpleNamespace(key="shift+left"))
+        self.assertEqual(viewer.i, 100)
 
 
 if __name__ == "__main__":

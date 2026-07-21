@@ -15,7 +15,7 @@
 
 조작
 ----
-  ← / →      : 이전 / 다음 프레임 (Shift 누르면 10프레임씩)
+  ← / →      : 이전 / 다음 프레임 (Shift 누르면 50프레임씩)
   Home / End : 처음 / 마지막
   s          : 현재 프레임 png 저장
   q          : 종료
@@ -490,7 +490,7 @@ class Viewer:
         # --- 패널 4: ego 검수 plot ---
         self._draw_plots(i)
 
-        self.fig.suptitle("%s  |  frame %d / %d   (arrows or a/d: move,  Shift: x10,  s: save,  q: quit)"
+        self.fig.suptitle("%s  |  frame %d / %d   (arrows or a/d: move,  Shift: x50,  s: save,  q: quit)"
                           % (run.track_name, i, run.n_frames - 1), fontsize=12,
                           y=0.988, va="top")
         self.fig.canvas.draw_idle()
@@ -568,7 +568,7 @@ class Viewer:
     # ------------------------------------------------------------------ 조작
     def _on_key(self, event):
         n = self.run.n_frames
-        big = self.step * 10
+        big = self.step * 50
         k = event.key
         if k in ("right", "d", "."):
             self.i = min(n - 1, self.i + self.step)
