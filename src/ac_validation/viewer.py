@@ -45,6 +45,55 @@ _OPP_C = "#2ca02c"
 _OPP_RET = "#d62728"
 
 
+def _bbox_row_visible(row) -> bool:
+    """Return whether an opponent is eligible for a camera training label."""
+    return (bool(row.get("present", True))
+            and not bool(row.get("retired", False))
+            and bool(row.get("valid", True)))
+
+
+def _layout_image_labels(labels, width=1920, height=945,
+                         label_width=24, label_height=20):
+    """Place image labels without overlap, staying inside the captured image."""
+    placed = []
+    out = []
+    margin_x, margin_y = label_width / 2 + 2, label_height / 2 + 2
+
+    def clamp(x, y):
+        return (float(np.clip(x, margin_x, width - margin_x)),
+                float(np.clip(y, margin_y, height - margin_y)))
+
+    def free(x, y):
+        return all(abs(x - px) >= label_width or abs(y - py) >= label_height
+                   for px, py in placed)
+
+    for oid, ax, ay in labels:
+        candidates = [(0, 0)]
+        for ring in range(1, 13):
+            dx, dy = ring * label_width, ring * label_height
+            candidates.extend([(0, -dy), (dx, 0), (0, dy), (-dx, 0),
+                               (dx, -dy), (dx, dy), (-dx, dy), (-dx, -dy)])
+        pos = None
+        for dx, dy in candidates:
+            x, y = clamp(ax + dx, ay + dy)
+            if free(x, y):
+                pos = (x, y)
+                break
+        if pos is None:
+            for y in np.arange(margin_y, height - margin_y + 1, label_height):
+                for x in np.arange(margin_x, width - margin_x + 1, label_width):
+                    if free(float(x), float(y)):
+                        pos = (float(x), float(y))
+                        break
+                if pos is not None:
+                    break
+        if pos is None:
+            pos = clamp(ax, ay)
+        placed.append(pos)
+        out.append((oid, (float(ax), float(ay)), pos))
+    return out
+
+
 class Viewer:
     def __init__(self, run: RunData, frame: int = 0, step: int = 1,
                  fov_deg: float | None = None, camera_index: int | None = None,
@@ -179,8 +228,12 @@ class Viewer:
         #   우측 열  : ego 검수 plot 4개(세로로)
         self.ax_img = self.fig.add_axes([0.02, 0.53, 0.42, 0.42])    # 카메라 + 3D bbox
         # 좌하: 전체맵(좌) + 로컬 BEV(우). 전체맵은 트랙 종횡비에 맞춰 크기.
+        # 전체맵과 범례의 figure 영역을 물리적으로 분리한다. 트랙 형상과
+        # 관계없이 범례가 랩/차량을 가릴 수 없다.
         self.ax_glob = self.fig.add_axes(
-            self._fit_rect((0.015, 0.05, 0.215, 0.43), self._track_aspect()))  # 전체 트랙 맵
+            self._fit_rect((0.015, 0.105, 0.215, 0.355), self._track_aspect()))
+        self.ax_glob_legend = self.fig.add_axes([0.015, 0.012, 0.215, 0.075])
+        self.ax_glob_legend.axis("off")
         self.ax_bev = self.fig.add_axes([0.25, 0.06, 0.19, 0.40])    # BEV ego-centric(로컬)
         # 가운데: 물리 일관성(av-check). 프레임 무관 고정 → __init__ 에서 1회 렌더.
         #   체크마다 measured vs reference 산점도(y=x 에 붙으면 일치). 세로로 5개 쌓음.
@@ -373,9 +426,10 @@ class Viewer:
         if img_path is not None:
             self.ax_img.imshow(mpimg.imread(str(img_path)))
         n_box = 0
+        image_labels = []
         for oid, o in run.opps.items():
             r = o.iloc[i]
-            if not bool(r.get("present", True)) or bool(r.get("retired", False)):
+            if not _bbox_row_visible(r):
                 continue
             if tt is not None:
                 r = pd.Series(self._interp_row(o, tt))
@@ -400,9 +454,16 @@ class Viewer:
                 self.ax_img.add_patch(Polygon(front, closed=True, fc="#00d7ff",
                                               alpha=0.08, ec="none", zorder=4))
             c = np.nanmean([p for e in edges for p in e[:2]], axis=0)
-            self.ax_img.text(c[0], c[1], str(oid), color="yellow", fontsize=12,
-                             weight="bold", zorder=6)
+            image_labels.append((oid, float(c[0]), float(c[1])))
             n_box += 1
+        for oid, anchor, pos in _layout_image_labels(image_labels):
+            if np.hypot(pos[0] - anchor[0], pos[1] - anchor[1]) > 2:
+                self.ax_img.plot([anchor[0], pos[0]], [anchor[1], pos[1]],
+                                 color="yellow", lw=0.7, alpha=0.75, zorder=6)
+            self.ax_img.text(pos[0], pos[1], str(oid), color="yellow", fontsize=11,
+                             ha="center", va="center", weight="bold", zorder=7,
+                             bbox=dict(facecolor="black", edgecolor="none",
+                                       alpha=0.42, pad=0.6))
         self.ax_img.set_xlim(0, 1920); self.ax_img.set_ylim(945, 0)
         self.ax_img.axis("off")
         cap = "raw: %s" % (img_path.name if img_path else "?")
@@ -419,6 +480,8 @@ class Viewer:
 
         # --- 패널 3: 전체 트랙 맵 ---
         self.ax_glob.clear()
+        self.ax_glob_legend.clear()
+        self.ax_glob_legend.axis("off")
         self._draw_global(self.ax_glob, i)
 
         # --- 패널 4: ego 검수 plot ---
@@ -436,7 +499,13 @@ class Viewer:
 
     def _draw_global(self, ax, i):
         """전체 트랙 맵. av-bev 의 global 뷰와 **동일한 렌더링**을 공용 draw_scene 으로 재사용."""
-        bevmod.draw_scene(ax, self.run, i, view="global")
+        n_shown = bevmod.draw_scene(ax, self.run, i, view="global", title=False,
+                                    legend=True, legend_ax=self.ax_glob_legend)
+        ego = self.run.ego.iloc[i]
+        spd = float(ego.get("speed", float("nan")))
+        ax.set_title("%s · frame %d\n%.1f m/s (%.0f km/h) · %d opp"
+                     % (self.run.track_name, i, spd, spd * 3.6, n_shown),
+                     fontsize=8.5, pad=3)
         ax.tick_params(labelsize=7)
 
     def _draw_plots(self, i):
