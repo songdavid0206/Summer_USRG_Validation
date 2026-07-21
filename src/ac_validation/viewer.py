@@ -236,7 +236,10 @@ class Viewer:
             self._fit_rect((0.015, 0.105, 0.215, 0.355), self._track_aspect()))
         self.ax_glob_legend = self.fig.add_axes([0.015, 0.012, 0.215, 0.075])
         self.ax_glob_legend.axis("off")
-        self.ax_bev = self.fig.add_axes([0.25, 0.06, 0.19, 0.40])    # BEV ego-centric(로컬)
+        # x축 라벨까지 범례와 분리되도록 지도와 범례 사이에 넉넉한 간격을 둔다.
+        self.ax_bev = self.fig.add_axes([0.25, 0.14, 0.19, 0.32])    # BEV ego-centric(로컬)
+        self.ax_bev_legend = self.fig.add_axes([0.25, 0.012, 0.19, 0.075])
+        self.ax_bev_legend.axis("off")
         # 가운데: 물리 일관성(av-check). 프레임 무관 고정 → __init__ 에서 1회 렌더.
         #   체크마다 measured vs reference 산점도(y=x 에 붙으면 일치). 세로로 5개 쌓음.
         self.ax_phys_hdr = self.fig.add_axes([0.475, 0.905, 0.245, 0.03]); self.ax_phys_hdr.axis("off")
@@ -478,6 +481,8 @@ class Viewer:
 
         # --- 패널 2: BEV (ego-centric) ---
         self.ax_bev.clear()
+        self.ax_bev_legend.clear()
+        self.ax_bev_legend.axis("off")
         self._draw_bev(self.ax_bev, i)
 
         # --- 패널 3: 전체 트랙 맵 ---
@@ -497,7 +502,7 @@ class Viewer:
     def _draw_bev(self, ax, i):
         """BEV(ego-centric). av-bev 와 같은 draw_scene 재사용(범례 포함), 제목만 뷰어용으로."""
         bevmod.draw_scene(ax, self.run, i, view="ego", fov_deg=self.fov,
-                          legend=True, title=False)
+                          legend=True, title=False, legend_ax=self.ax_bev_legend)
         ax.set_title("BEV (ego-centric)", fontsize=9)
 
     def _draw_global(self, ax, i):
