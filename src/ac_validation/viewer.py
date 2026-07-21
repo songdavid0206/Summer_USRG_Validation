@@ -226,7 +226,9 @@ class Viewer:
         #   좌측 열  : 카메라 이미지(위, 크게) + [전체맵 | 로컬 BEV](아래 나란히)
         #   가운데 열: 물리검증 요약(av-check, 고정)
         #   우측 열  : ego 검수 plot 4개(세로로)
-        self.ax_img = self.fig.add_axes([0.02, 0.53, 0.42, 0.42])    # 카메라 + 3D bbox
+        # 상단 전체 제목과 패널 제목이 작은 화면/Windows 배율에서도 겹치지
+        # 않도록 위쪽에 독립된 헤더 여백을 둔다.
+        self.ax_img = self.fig.add_axes([0.02, 0.53, 0.42, 0.385])   # 카메라 + 3D bbox
         # 좌하: 전체맵(좌) + 로컬 BEV(우). 전체맵은 트랙 종횡비에 맞춰 크기.
         # 전체맵과 범례의 figure 영역을 물리적으로 분리한다. 트랙 형상과
         # 관계없이 범례가 랩/차량을 가릴 수 없다.
@@ -488,7 +490,8 @@ class Viewer:
         self._draw_plots(i)
 
         self.fig.suptitle("%s  |  frame %d / %d   (arrows or a/d: move,  Shift: x10,  s: save,  q: quit)"
-                          % (run.track_name, i, run.n_frames - 1), fontsize=12)
+                          % (run.track_name, i, run.n_frames - 1), fontsize=12,
+                          y=0.988, va="top")
         self.fig.canvas.draw_idle()
 
     def _draw_bev(self, ax, i):
