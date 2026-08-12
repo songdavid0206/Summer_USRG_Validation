@@ -70,7 +70,29 @@ av-check ac_dataset\dataset\<run_id>
 av-view  ac_dataset\dataset\<run_id> --frame 0
 ```
 
-입력은 `dataset_v2/<session>`이 아니라 다음 구조를 가진 **원본 run**이다.
+### dataset_v2 multi 세션 뷰어
+
+원본 run 없이 배포된 v2 multi ZIP은 먼저 Windows 탐색기에서 **모두 압축 풀기**를 한다.
+세션 최상위에 `FRAME_INDEX.csv`, `image_index.parquet`,
+`render_car_state.parquet`, `TRACK_INFO`가 있는 render-metadata-enriched 세션만 지원한다.
+기존 원본용 `av-view`와 별도 명령이므로 같은 환경에 함께 설치해도 충돌하지 않는다.
+
+```powershell
+av-view-v2 ac_dataset\dataset_v2\multi\<session> --frame 3000
+```
+
+모듈로 직접 실행할 수도 있다.
+
+```powershell
+python -m ac_validation.viewer_v2 ac_dataset\dataset_v2\multi\<session> --frame 3000
+```
+
+v2의 `steer_angle`은 degree가 아닌 `[-1, 1]` 정규화 조작값이므로 controls 패널에
+`steer(norm)`으로 표시한다. v2 파티션의 `INTERACTIONS` 중첩 프레임과
+`NON_INTERACTION` 프레임은 `time_ms`로 중복 제거하여 원래의 연속 세션 순서로 읽는다.
+
+기존 `av-check`와 `av-view`의 입력은 다음 구조를 가진 **원본 run**이다.
+`dataset_v2`에는 위의 별도 `av-view-v2` 명령을 사용한다.
 
 ```text
 dataset/<run_id>/

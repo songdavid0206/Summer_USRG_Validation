@@ -469,7 +469,8 @@ class Viewer:
                                        alpha=0.42, pad=0.6))
         self.ax_img.set_xlim(0, 1920); self.ax_img.set_ylim(945, 0)
         self.ax_img.axis("off")
-        cap = "raw: %s" % (img_path.name if img_path else "?")
+        image_source = "v2" if run.meta.get("v2_session") else "raw"
+        cap = "%s: %s" % (image_source, img_path.name if img_path else "?")
         if exp_path is not None:
             cap += "   |   export: %s" % exp_path.name
         cam_label = "CSP render pose" if render_camera is not None else self.cam_name
@@ -539,7 +540,7 @@ class Viewer:
             if len(cols) > 1:
                 ax.legend(fontsize=5, loc="upper right")
 
-        # --- controls 패널: throttle/brake 는 왼쪽축[0,1], steer(도)는 오른쪽 twin 축 ---
+        # --- controls 패널: throttle/brake 는 왼쪽축[0,1], steer 는 오른쪽 twin 축 ---
         axc, axs = self.ax_p[1], self.ax_ctrl_tw
         axc.clear(); axs.clear()
         h = []
@@ -550,10 +551,12 @@ class Viewer:
         axc.set_ylabel("thr/brk", fontsize=6, color="#555")
         if "steer" in e.columns:
             sv = e["steer"].to_numpy()
-            h += axs.plot(t, sv, color="#1f77b4", lw=0.7, label="steer(deg)")
+            steer_unit = str(run.meta.get("steer_unit", "deg"))
+            steer_label = "steer(norm)" if steer_unit == "normalized" else "steer(deg)"
+            h += axs.plot(t, sv, color="#1f77b4", lw=0.7, label=steer_label)
             m = float(np.nanmax(np.abs(sv))) or 1.0
             axs.set_ylim(-1.1 * m, 1.1 * m)
-            axs.set_ylabel("steer(deg)", fontsize=6, color="#1f77b4")
+            axs.set_ylabel(steer_label, fontsize=6, color="#1f77b4")
             # clear() 가 라벨 위치를 기본(왼쪽)으로 되돌리므로 매번 오른쪽으로 고정(눈금은 오른쪽).
             axs.yaxis.set_label_position("right")
         axs.tick_params(labelsize=6, colors="#1f77b4")
