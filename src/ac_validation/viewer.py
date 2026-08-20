@@ -616,7 +616,7 @@ def main():
     ap.add_argument("--tau-ms", type=float, default=0.0,
                     help="캡처 지연 보정(ms). 이미지 내용이 t_img 보다 과거라 telemetry 를 "
                          "t_img-τ 로 보간해 투영. 코너서 박스가 진행방향 반대로 밀리면 ↑, "
-                         "앞서가면 ↓ (기본 30)")
+                         "앞서가면 ↓ (기본 0)")
     args = ap.parse_args()
     # 인터랙티브 창이 필요. Agg(저장전용)로 잡혀 있으면 창 띄우는 백엔드로 전환 시도.
     if matplotlib.get_backend().lower() == "agg":

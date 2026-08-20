@@ -2,6 +2,7 @@
 validation/
 reports/
 *.png
+!docs/images/*.png
 
 # 파이썬 캐시
 __pycache__/
